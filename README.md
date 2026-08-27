@@ -17,10 +17,11 @@ A pi port of [pstack](https://github.com/cursor/plugins/tree/main/pstack), Laure
 ## Install
 
 ```bash
-pi install /absolute/path/to/pstack-pi
+pi install npm:pstack-pi        # from npm (recommended, version-pinned)
+pi install git:github.com/0xrsydn/pstack-pi   # or from git
 ```
 
-or via a git/npm source once published. Confirm resources load with `pi list`.
+After installing, confirm resources load with `pi list`.
 
 ## Model configuration
 

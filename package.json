@@ -23,5 +23,20 @@
 	"pi": {
 		"extensions": ["./extensions/subagent/index.ts"],
 		"skills": ["./skills"]
+	},
+	"files": [
+		"skills",
+		"agents",
+		"extensions",
+		"README.md",
+		"LICENSE",
+		"package.json"
+	],
+	"peerDependencies": {
+		"@earendil-works/pi-agent-core": "*",
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*",
+		"typebox": "*"
 	}
 }
