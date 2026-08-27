@@ -7,7 +7,7 @@ A pi port of [pstack](https://github.com/cursor/plugins/tree/main/pstack), Laure
 ## Quick start
 
 ```bash
-pi install npm:pstack-pi
+pi install npm:@0xrsydn/pstack-pi
 ```
 
 ## What ships
@@ -23,7 +23,7 @@ pi install npm:pstack-pi
 ## Install
 
 ```bash
-pi install npm:pstack-pi        # from npm (recommended, version-pinned)
+pi install npm:@0xrsydn/pstack-pi        # from npm (recommended, version-pinned)
 pi install git:github.com/0xrsydn/pstack-pi   # or from git
 ```
 

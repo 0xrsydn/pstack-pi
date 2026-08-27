@@ -1,5 +1,5 @@
 {
-	"name": "pstack-pi",
+	"name": "@0xrsydn/pstack-pi",
 	"version": "0.15.0",
 	"description": "Port of pstack (Lauren Tan's Cursor plugin) to pi: poteto-mode workflows, principle skills, and subagent fan-out with per-role models.",
 	"license": "MIT",
