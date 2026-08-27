@@ -4,6 +4,12 @@ A pi port of [pstack](https://github.com/cursor/plugins/tree/main/pstack), Laure
 
 > **Acknowledgment:** all skills, workflows, and prose originate from Lauren Tan's [pstack](https://github.com/cursor/plugins). This repository only ports them to pi.
 
+## Quick start
+
+```bash
+pi install npm:pstack-pi
+```
+
 ## What ships
 
 - **`skills/`** — all 45 original workflow and principle skills (`poteto-mode`, `swarm`, `arena`, `interrogate`, `how`, `why`, `reflect`, the `principle-*` set, etc.), rewritten where they referenced Cursor-specific mechanics.
