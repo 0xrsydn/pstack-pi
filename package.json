@@ -1,6 +1,6 @@
 {
 	"name": "@0xrsydn/pstack-pi",
-	"version": "0.15.0",
+	"version": "0.15.1",
 	"description": "Port of pstack (Lauren Tan's Cursor plugin) to pi: poteto-mode workflows, principle skills, and subagent fan-out with per-role models.",
 	"license": "MIT",
 	"author": {
@@ -21,8 +21,12 @@
 		"subagents"
 	],
 	"pi": {
-		"extensions": ["./extensions/subagent/index.ts"],
-		"skills": ["./skills"]
+		"extensions": [
+			"./extensions/subagent/index.ts"
+		],
+		"skills": [
+			"./skills"
+		]
 	},
 	"files": [
 		"skills",
