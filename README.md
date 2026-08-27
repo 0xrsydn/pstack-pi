@@ -12,7 +12,7 @@ pi install npm:@0xrsydn/pstack-pi
 
 ## What ships
 
-- **`skills/`** — all 45 original workflow and principle skills (`poteto-mode`, `swarm`, `arena`, `interrogate`, `how`, `why`, `reflect`, the `principle-*` set, etc.), rewritten where they referenced Cursor-specific mechanics.
+- **`skills/`** — 44 of the 45 original workflow and principle skills (`poteto-mode`, `swarm`, `arena`, `interrogate`, `how`, `why`, `reflect`, the `principle-*` set, etc.), rewritten where they referenced Cursor-specific mechanics. Only `grokbot/make-bot-ui` is dropped (see below).
 - **`agents/`** — subagent definitions discovered by the bundled extension: `poteto-agent`, `comment-sicko`, and `general-purpose` (replaces Cursor's built-in `generalPurpose` task agent).
 - **`extensions/subagent/`** — pi's example subagent tool, extended for pstack:
   - Per-task `model` override (with pstack's `inherit-parent` / `auto` aliases), so one parallel call can mix models.
@@ -55,6 +55,8 @@ The parent agent reads that file before spawning and passes each role's value as
 | `deslop`, `control-ui`/`control-cli` (`cursor-team-kit`) references | degraded gracefully: steps drop the plugin dependency or drive the surface directly |
 | Bugbot review-bot comments | generalized to any bot reviewer comments |
 | Slash commands like `/bro`, `/why` | `/skill:bro`, `/skill:why` (enable skill commands in settings) |
+
+Trigger behavior matches upstream: 39 of the 44 skills set `disable-model-invocation: true`, so they run only when you invoke them (`/skill:name` or by name in conversation) or when another skill reads their file by path. `how`, `why`, `setup-pstack`, `typescript-best-practices`, and `unslop` auto-trigger on matching tasks.
 
 Not ported:
 
