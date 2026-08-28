@@ -274,6 +274,26 @@ interface TaskOverrides {
 	readonly?: boolean;
 }
 
+/**
+ * Role → model mapping, read at spawn time from ~/.pi/agent/pstack-models.json.
+ * Values are a model slug, an array of slugs (panels cycle across same-role
+ * tasks in one call), or the aliases "inherit-parent" / "auto" (parent model).
+ * A missing or invalid file is fine: every role then resolves to the parent model.
+ */
+interface RoleConfig {
+	[role: string]: string | string[] | undefined;
+}
+
+function loadRoleConfig(): RoleConfig {
+	try {
+		const parsed = JSON.parse(fs.readFileSync(path.join(getAgentDir(), "pstack-models.json"), "utf8"));
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as RoleConfig;
+	} catch {
+		// No config (or invalid JSON): every role falls back to the parent model.
+	}
+	return {};
+}
+
 async function runSingleAgent(
 	defaultCwd: string,
 	dispatchDefaults: DispatchDefaults,
@@ -465,11 +485,19 @@ const ReadOnlyFlag = Type.Optional(
 	}),
 );
 
+const RoleField = Type.Optional(
+	Type.String({
+		description:
+			'Role name from ~/.pi/agent/pstack-models.json (e.g. "code", "execution", "judgment", "panel"). The extension resolves the role to a model; array values cycle across same-role tasks in one call. Ignored when an explicit model is set. Unknown roles and a missing config resolve to the parent chat model.',
+	}),
+);
+
 const TaskItem = Type.Object({
 	agent: Type.String({ description: "Name of the agent to invoke" }),
 	task: Type.String({ description: "Task to delegate to the agent" }),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
 	model: ModelOverride,
+	role: RoleField,
 	readonly: ReadOnlyFlag,
 });
 
@@ -478,6 +506,7 @@ const ChainItem = Type.Object({
 	task: Type.String({ description: "Task with optional {previous} placeholder for prior output" }),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
 	model: ModelOverride,
+	role: RoleField,
 	readonly: ReadOnlyFlag,
 });
 
@@ -493,6 +522,7 @@ const SubagentParams = Type.Object({
 	chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })),
 	agentScope: Type.Optional(AgentScopeSchema),
 	model: ModelOverride,
+	role: RoleField,
 	readonly: ReadOnlyFlag,
 	confirmProjectAgents: Type.Optional(
 		Type.Boolean({ description: "Prompt before running project-local agents. Default: true.", default: true }),
@@ -521,6 +551,24 @@ export default function (pi: ExtensionAPI) {
 			const discovery = discoverAgents(ctx.cwd, agentScope);
 			const agents = discovery.agents;
 			const confirmProjectAgents = params.confirmProjectAgents ?? true;
+
+			const roleConfig = loadRoleConfig();
+			const roleCursor = new Map<string, number>();
+			const resolveRoleModel = (role?: string): string | undefined => {
+				if (!role) return undefined;
+				const entry = roleConfig[role];
+				if (typeof entry === "string") {
+					return entry === "inherit-parent" || entry === "auto" ? undefined : entry;
+				}
+				if (Array.isArray(entry) && entry.length > 0) {
+					// Panels: same-role tasks in one call consume the list in order, cycling.
+					const index = roleCursor.get(role) ?? 0;
+					roleCursor.set(role, index + 1);
+					const model = entry[index % entry.length];
+					return model === "inherit-parent" || model === "auto" ? undefined : model;
+				}
+				return undefined;
+			};
 
 			const hasChain = (params.chain?.length ?? 0) > 0;
 			const hasTasks = (params.tasks?.length ?? 0) > 0;
@@ -614,7 +662,7 @@ export default function (pi: ExtensionAPI) {
 						onUpdate,
 						chainUpdate,
 						makeDetails("chain"),
-						{ model: step.model, readonly: step.readonly },
+						{ model: step.model ?? resolveRoleModel(step.role), readonly: step.readonly },
 					);
 					results.push(result);
 
@@ -694,7 +742,7 @@ export default function (pi: ExtensionAPI) {
 							}
 						},
 						makeDetails("parallel"),
-						{ model: t.model, readonly: t.readonly },
+						{ model: t.model ?? resolveRoleModel(t.role), readonly: t.readonly },
 					);
 					allResults[index] = result;
 					emitParallelUpdate();
@@ -732,7 +780,7 @@ export default function (pi: ExtensionAPI) {
 					signal,
 					onUpdate,
 					makeDetails("single"),
-					{ model: params.model, readonly: params.readonly },
+					{ model: params.model ?? resolveRoleModel(params.role), readonly: params.readonly },
 				);
 				const isError = isFailedResult(result);
 				if (isError) {

@@ -45,7 +45,7 @@ The right decomposition depends on the question. Use your judgment. Narrow quest
 Spawn all explorers in a single message:
 
 - `agent`: `general-purpose`
-- `model`: your configured how-explorer model (default `grok-4.6-fast-xhigh`)
+- `role`: `code` (the configured code model; no config: the parent model)
 - `readonly`: `true`
 
 Each explorer gets the same base prompt from `references/explorer-prompt.md` plus a specific exploration angle naming its slice. Each explorer should:
@@ -64,7 +64,7 @@ Then proceed to Step 3.
 Spawn a single subagent that explores and explains in one pass:
 
 - `agent`: `general-purpose`
-- `model`: your configured how-explainer model (default `claude-fable-5-thinking-max`)
+- `role`: `judgment` (the configured judgment model; no config: the parent model)
 - `readonly`: `true`
 
 The agent does its own exploration (Glob, Grep, Read) and writes the explanation directly. Read `references/explainer-prompt.md` for the communication style and output format. Same structure, just no explorer findings as input.
@@ -76,7 +76,7 @@ Proceed to Step 4.
 Once all explorers return, spawn a single subagent to synthesize their findings into one coherent explanation:
 
 - `agent`: `general-purpose`
-- `model`: your configured how-explainer model (default `claude-fable-5-thinking-max`)
+- `role`: `judgment` (the configured judgment model; no config: the parent model)
 - `readonly`: `true`
 
 The explainer gets all explorers' findings and writes the human-facing explanation (output format below). Read `references/explainer-prompt.md` for the full prompt template. The explainer reconciles overlapping findings, resolves contradictions, and weaves the slices into a unified picture.
@@ -109,7 +109,7 @@ Run the full explain flow above (Steps 1-4). You must understand the architectur
 
 ### Step 2. Spawn Critics
 
-After the explanation is complete, spawn one architectural critic per model in your configured how-critics list (defaults `claude-fable-5-thinking-max`, `gpt-5.6-sol-max`, `grok-4.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`), all in a single message.
+After the explanation is complete, spawn one architectural critic per entry of your configured `panel` role list, all in a single message. Pass `role: "panel"` on each task entry; the extension cycles the list (no config: one critic on the parent model).
 
 For each critic:
 - `agent`: `general-purpose`

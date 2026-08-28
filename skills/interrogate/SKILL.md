@@ -33,14 +33,11 @@ Write one clear paragraph. Reviewers challenge whether the work achieves the int
 
 ## Step 3, Spawn Reviewers
 
-Launch all reviewers in a single message using the subagent tool. Use the `interrogate reviewers` list from `~/.pi/agent/pstack-models.md` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count; otherwise use the table defaults.
+Launch all reviewers in a single message using the subagent tool. Use the `interrogate reviewers` list from `~/.pi/agent/pstack-models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count; otherwise use the table defaults.
 
 | Subagent | Default model |
 |----------|---------------|
-| Reviewer A | `claude-fable-5-thinking-max` |
-| Reviewer B | `gpt-5.6-sol-max` |
-| Reviewer C | `grok-4.6-fast-xhigh` |
-| Reviewer D | `claude-opus-5-thinking-xhigh` |
+Reviewers run on the `panel` role: pass `role: "panel"` on each task entry and the extension cycles the configured model list, one model per reviewer (no config: every reviewer on the parent model).
 
 For each reviewer:
 - `agent`: `general-purpose`

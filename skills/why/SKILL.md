@@ -117,7 +117,7 @@ Launch all matching investigators in a single message so they run concurrently. 
 
 Subagent config (each):
 - `agent`: `general-purpose`
-- `model`: your configured why-investigators model (default `grok-4.6-fast-xhigh`)
+- `role`: `code` (the configured code model; no config: the parent model)
 - `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. The source control investigator would be safe in readonly, but keep modes uniform. Investigators still shouldn't write anything. That's a posture, not a sandbox.
 
 Each investigator gets:
@@ -163,7 +163,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 Spawn one synthesizer subagent:
 
 - `agent`: `general-purpose`
-- `model`: your configured why-synthesizer model (default `claude-fable-5-thinking-max`)
+- `role`: `judgment` (the configured judgment model; no config: the parent model)
 - `readonly`: `false` (agent mode). The synthesizer's quality check spot-verifies citations, which can require MCP access. Readonly/Ask mode strips MCPs and defeats that.
 
 The synthesizer gets:

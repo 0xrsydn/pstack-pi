@@ -10,6 +10,8 @@ A pi port of [pstack](https://github.com/cursor/plugins/tree/main/pstack), Laure
 pi install npm:@0xrsydn/pstack-pi
 ```
 
+Then run `/skill:setup-pstack` once to assign models per role (or skip it — every role defaults to your chat model).
+
 ## What ships
 
 - **`skills/`** — 44 of the 45 original workflow and principle skills (`poteto-mode`, `swarm`, `arena`, `interrogate`, `how`, `why`, `reflect`, the `principle-*` set, etc.), rewritten where they referenced Cursor-specific mechanics. Only `grokbot/make-bot-ui` is dropped (see below).
@@ -29,15 +31,27 @@ pi install git:github.com/0xrsydn/pstack-pi   # or from git
 
 After installing, confirm resources load with `pi list`.
 
-## Model configuration
+## Model configuration (role routing)
 
-Run the `setup-pstack` skill ("/skill:setup-pstack", or ask the agent to configure pstack models). It:
+Spawns carry a **role** (`code`, `execution`, `judgment`, `panel`), and the bundled extension resolves the role to a model at spawn time by reading `~/.pi/agent/pstack-models.json`:
 
-1. Detects your models with `pi --list-models`.
-2. Asks which model each role uses (code delegates, judgment/prose, review panels, swarm workers).
-3. Writes `~/.pi/agent/pstack-models.md`.
+```json
+{
+  "code": "opencode/grok-code",
+  "execution": "anthropic/claude-sonnet-4-5",
+  "judgment": "anthropic/claude-opus-4-5",
+  "panel": ["anthropic/claude-opus-4-5", "openai/gpt-5-codex", "google/gemini-3-pro"]
+}
+```
 
-The parent agent reads that file before spawning and passes each role's value as the `model` field of its `subagent` task entry. Delete a line to fall back to that skill's inline default; delete the file to fall back everywhere. There is no requirement to run setup — defaults described inline in the skills apply, but they reference placeholder model names from the upstream plugin until you write real ones.
+- `code` — fast volume workers: feature/refactor delegates, swarm workers, explorers, investigators
+- `execution` — precisely specified mechanical work: bug-fix, perf-issue, hillclimb, tooling reviews
+- `judgment` — strongest reasoning: explainers, synthesizers, the hardest tasks
+- `panel` — review fan-out; the value is a **list** and same-role tasks in one call cycle through it, one model per subagent
+
+Native pi behavior is the default: no config file, a missing role, or the aliases `"inherit-parent"` / `"auto"` all resolve to the **parent chat model**. Role values can also be per-task overridden with an explicit `model` field (e.g. model races). Unknown role names fall back to the parent model.
+
+Run the `setup-pstack` skill to generate this file: it detects your models with `pi --list-models`, asks which model each role uses, and writes the config. Skills reference roles only — no model slugs are hardcoded in the workflow prose.
 
 ## Adaptations from the original
 
@@ -48,7 +62,7 @@ The parent agent reads that file before spawning and passes each role's value as
 | Task-level `model` slug | task-level `model` field (`provider/model-id` form) |
 | `run_in_background`, cloud workers | parallel `tasks[]` calls run concurrently with isolated contexts; all local |
 | `environment: "cloud"` / cloud VMs | removed; lanes run in worktrees on this machine |
-| `~/.cursor/rules/pstack-models.mdc` | `~/.pi/agent/pstack-models.md` (plain markdown, read before spawns) |
+| `~/.cursor/rules/pstack-models.mdc` | `~/.pi/agent/pstack-models.json`: role → model map read by the extension at spawn; unset roles inherit the parent model |
 | `~/.cursor/skills/` paths | `~/.pi/agent/skills/`; project `.cursor/skills/` → `.pi/skills/` |
 | Session transcripts under `~/.cursor/projects/<slug>/agent-transcripts/` | `~/.pi/agent/sessions/<dashed-repo-path>/*.jsonl` |
 | Cursor's built-in `create-skill` / babysit skills | generic authoring guidance; pstack's own playbooks cover these requests |
