@@ -20,7 +20,7 @@ Write `~/.pi/agent/pstack-models.json`, a JSON file mapping four roles to models
 
 ### 1. Detect available models
 
-Run `pi --list-models` (optionally with a search term) and enumerate the returned slugs. Pi model slugs use the `provider/model-id` form (for example `anthropic/claude-opus-4-5`). Only write slugs that appear in the output. If you cannot detect any, ask the user to paste the slugs they have access to. Never write a real slug you have not confirmed is available. The aliases `inherit-parent` and `auto` are always valid even though they are not detected slugs; both mean the role runs on the parent chat model.
+Run `pi --list-models` (optionally with a search term) and enumerate the returned slugs. Pi model slugs use the `provider/model-id` form (for example `opencode/claude-fable-5`). Only write slugs that appear in the output. If you cannot detect any, ask the user to paste the slugs they have access to. Never write a real slug you have not confirmed is available. The aliases `inherit-parent` and `auto` are always valid even though they are not detected slugs; both mean the role runs on the parent chat model.
 
 ### 2. Load current state
 

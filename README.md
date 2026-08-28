@@ -37,10 +37,10 @@ Spawns carry a **role** (`code`, `execution`, `judgment`, `panel`), and the bund
 
 ```json
 {
-  "code": "opencode/grok-code",
-  "execution": "anthropic/claude-sonnet-4-5",
-  "judgment": "anthropic/claude-opus-4-5",
-  "panel": ["anthropic/claude-opus-4-5", "openai/gpt-5-codex", "google/gemini-3-pro"]
+  "code": "opencode/grok-4.6",
+  "execution": "opencode/gpt-5.6-terra",
+  "judgment": "opencode/claude-fable-5",
+  "panel": ["opencode/claude-opus-5", "opencode/gpt-5.6-sol", "opencode/grok-4.6", "opencode/gemini-3.1-pro"]
 }
 ```
 
