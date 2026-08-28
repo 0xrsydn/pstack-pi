@@ -324,17 +324,23 @@ async function runSingleAgent(
 	}
 
 	const args: string[] = ["--mode", "json", "-p", "--no-session"];
-	// Model precedence: explicit non-alias task override > agent frontmatter > dispatch default.
-	// The aliases "inherit-parent" and "auto" mean "run on the parent chat model": omit --model.
+	// Model precedence: explicit non-alias task override > role resolution (in overrides.model)
+	//   > agent frontmatter > parent model (dispatch default).
+	// The aliases "inherit-parent" and "auto" mean "run on the parent chat model": use
+	// dispatchDefaults.model explicitly rather than omitting --model (omitting would let the
+	// child fall back to its own default, which is not the parent's model in a sandbox).
 	let model: string | undefined;
 	if (overrides?.model) {
-		if (overrides.model !== "inherit-parent" && overrides.model !== "auto") model = overrides.model;
+		model =
+			overrides.model === "inherit-parent" || overrides.model === "auto"
+				? dispatchDefaults.model
+				: overrides.model;
 	} else {
 		model = agent.model ?? dispatchDefaults.model;
 	}
 	if (overrides?.readonly) args.push("--tools", "read,grep,find,ls");
 	if (model) args.push("--model", model);
-	if (!overrides?.model && !agent.model && dispatchDefaults.thinkingLevel) {
+	if (model === dispatchDefaults.model && dispatchDefaults.thinkingLevel) {
 		args.push("--thinking", dispatchDefaults.thinkingLevel);
 	}
 	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
