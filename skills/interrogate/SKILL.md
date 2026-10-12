@@ -33,18 +33,16 @@ Write one clear paragraph. Reviewers challenge whether the work achieves the int
 
 ## Step 3, Spawn Reviewers
 
-Launch all reviewers in a single message using the subagent tool. Use the `interrogate reviewers` list from `~/.pi/agent/pstack-models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count; otherwise use the table defaults.
+Launch all reviewers in one parallel `pstack_task` call. Read the `interrogate-reviewers` list from `~/.pi/agent/pstack-models.json` and create one task per entry. Extend or shrink the Reviewer A/B/C/D labels to match. Without a config, run two reviewers. `pstack_task` resolves the available upstream pair and falls back to the parent for an unavailable family.
 
-| Subagent | Default model |
-|----------|---------------|
-Reviewers run on the `panel` role: pass `role: "panel"` on each task entry and the extension cycles the configured model list, one model per reviewer (no config: every reviewer on the parent model).
+Pass `role: "interrogate-reviewers"` on each task entry. The extension cycles the configured list, one model per reviewer.
 
 For each reviewer:
 - `agent`: `general-purpose`
-- `model`: the configured `interrogate reviewers` entry, or the table default with no configured line
+- `role`: `interrogate-reviewers`
 - `readonly`: `true`
 
-If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the subagent tool's error message, pick the closest equivalent (prefer the highest-reasoning tier of the same family), spawn with the valid slug, and open a separate PR to update the configured value or default table. Do not block the review on the slug issue. If the configured value is `inherit-parent` or `auto`, omit `model` instead; never treat those aliases as broken slugs or enter this fallback for them.
+If `pstack_task` reports an unavailable configured model, run `/setup-pstack` before retrying. Do not substitute an unverified slug. `inherit-parent` is a valid assignment, not a model slug.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent

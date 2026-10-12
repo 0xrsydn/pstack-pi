@@ -1,7 +1,8 @@
 {
 	"name": "@0xrsydn/pstack-pi",
-	"version": "0.15.2",
-	"description": "Port of pstack (Lauren Tan's Cursor plugin) to pi: poteto-mode workflows, principle skills, and subagent fan-out with per-role models.",
+	"version": "0.16.0",
+	"description": "Pi-native port of pstack with rigorous workflows, exact role routing, and isolated subagents.",
+	"type": "module",
 	"license": "MIT",
 	"author": {
 		"name": "Lauren Tan (original pstack)",
@@ -9,8 +10,12 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cursor/plugins",
-		"directory": "pstack"
+		"url": "https://github.com/0xrsydn/pstack-pi"
+	},
+	"scripts": {
+		"check": "npm run typecheck && npm test",
+		"test": "node --experimental-strip-types --test extensions/pstack/*.test.ts",
+		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [
 		"pi-package",
@@ -22,7 +27,7 @@
 	],
 	"pi": {
 		"extensions": [
-			"./extensions/subagent/index.ts"
+			"./extensions/pstack/index.ts"
 		],
 		"skills": [
 			"./skills"
@@ -39,9 +44,16 @@
 	"peerDependencies": {
 		"@earendil-works/pi-agent-core": "*",
 		"@earendil-works/pi-ai": "*",
-		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-coding-agent": ">=1.1.0",
 		"@earendil-works/pi-tui": "*",
 		"typebox": "*"
+	},
+	"devDependencies": {
+		"@types/node": "^24.0.0",
+		"typescript": "^5.9.0"
+	},
+	"engines": {
+		"node": ">=22.19.0"
 	},
 	"publishConfig": {
 		"access": "public"
