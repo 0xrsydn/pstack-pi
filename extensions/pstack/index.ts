@@ -17,7 +17,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentToolResult, ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { Message } from "@earendil-works/pi-ai";
+import type { Message, Usage } from "@earendil-works/pi-ai";
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
 	CONFIG_DIR_NAME,
@@ -29,6 +29,16 @@ import {
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
+import {
+	configPath,
+	INHERIT_PARENT,
+	makeUpstreamPairConfig,
+	readConfig,
+	ROLE_SPECS,
+	type ModelAssignment,
+	type RoleId,
+} from "./config.ts";
+import { setupPstack } from "./setup.ts";
 
 const MAX_PARALLEL_TASKS = 8;
 const MAX_CONCURRENCY = 4;
@@ -148,12 +158,13 @@ interface UsageStats {
 
 interface SingleResult {
 	agent: string;
-	agentSource: "user" | "project" | "unknown";
+	agentSource: "user" | "project" | "package" | "unknown";
 	task: string;
 	exitCode: number;
 	messages: Message[];
 	stderr: string;
 	usage: UsageStats;
+	toolUsage?: Usage;
 	model?: string;
 	stopReason?: string;
 	errorMessage?: string;
@@ -165,6 +176,35 @@ interface SubagentDetails {
 	agentScope: AgentScope;
 	projectAgentsDir: string | null;
 	results: SingleResult[];
+}
+
+function mergeUsage(left: Usage | undefined, right: Usage): Usage {
+	if (!left) return right;
+	return {
+		input: left.input + right.input,
+		output: left.output + right.output,
+		cacheRead: left.cacheRead + right.cacheRead,
+		cacheWrite: left.cacheWrite + right.cacheWrite,
+		...(left.cacheWrite1h !== undefined || right.cacheWrite1h !== undefined
+			? { cacheWrite1h: (left.cacheWrite1h ?? 0) + (right.cacheWrite1h ?? 0) }
+			: {}),
+		...(left.reasoning !== undefined || right.reasoning !== undefined
+			? { reasoning: (left.reasoning ?? 0) + (right.reasoning ?? 0) }
+			: {}),
+		totalTokens: left.totalTokens + right.totalTokens,
+		cost: {
+			input: left.cost.input + right.cost.input,
+			output: left.cost.output + right.cost.output,
+			cacheRead: left.cost.cacheRead + right.cost.cacheRead,
+			cacheWrite: left.cost.cacheWrite + right.cost.cacheWrite,
+			total: left.cost.total + right.cost.total,
+		},
+	};
+}
+
+function aggregateToolUsage(results: SingleResult[]): Usage | undefined {
+	return results.reduce<Usage | undefined>((total, result) =>
+		result.toolUsage ? mergeUsage(total, result.toolUsage) : total, undefined);
 }
 
 function getFinalOutput(messages: Message[]): string {
@@ -271,27 +311,8 @@ interface DispatchDefaults {
 
 interface TaskOverrides {
 	model?: string;
+	thinkingLevel?: ThinkingLevel;
 	readonly?: boolean;
-}
-
-/**
- * Role → model mapping, read at spawn time from ~/.pi/agent/pstack-models.json.
- * Values are a model slug, an array of slugs (panels cycle across same-role
- * tasks in one call), or the aliases "inherit-parent" / "auto" (parent model).
- * A missing or invalid file is fine: every role then resolves to the parent model.
- */
-interface RoleConfig {
-	[role: string]: string | string[] | undefined;
-}
-
-function loadRoleConfig(): RoleConfig {
-	try {
-		const parsed = JSON.parse(fs.readFileSync(path.join(getAgentDir(), "pstack-models.json"), "utf8"));
-		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as RoleConfig;
-	} catch {
-		// No config (or invalid JSON): every role falls back to the parent model.
-	}
-	return {};
 }
 
 async function runSingleAgent(
@@ -324,26 +345,16 @@ async function runSingleAgent(
 	}
 
 	const args: string[] = ["--mode", "json", "-p", "--no-session"];
-	// Model precedence: explicit non-alias task override > role resolution (in overrides.model)
-	//   > agent frontmatter > parent model (dispatch default).
-	// The aliases "inherit-parent" and "auto" mean "run on the parent chat model": use
-	// dispatchDefaults.model explicitly rather than omitting --model (omitting would let the
-	// child fall back to its own default, which is not the parent's model in a sandbox).
-	let model: string | undefined;
-	if (overrides?.model) {
-		model =
-			overrides.model === "inherit-parent" || overrides.model === "auto"
-				? dispatchDefaults.model
-				: overrides.model;
-	} else {
-		model = agent.model ?? dispatchDefaults.model;
-	}
-	if (overrides?.readonly) args.push("--tools", "read,grep,find,ls");
+	const inheritsParent = overrides?.model === INHERIT_PARENT || overrides?.model === "auto";
+	const model = inheritsParent
+		? dispatchDefaults.model
+		: overrides?.model ?? agent.model ?? dispatchDefaults.model;
+	const thinkingLevel =
+		overrides?.thinkingLevel ?? (inheritsParent || (!overrides?.model && !agent.model) ? dispatchDefaults.thinkingLevel : undefined);
 	if (model) args.push("--model", model);
-	if (model === dispatchDefaults.model && dispatchDefaults.thinkingLevel) {
-		args.push("--thinking", dispatchDefaults.thinkingLevel);
-	}
-	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
+	if (thinkingLevel) args.push("--thinking", thinkingLevel);
+	if (overrides?.readonly) args.push("--tools", "read,grep,find,ls");
+	else if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
 	let tmpPromptDir: string | null = null;
 	let tmpPromptPath: string | null = null;
@@ -370,8 +381,13 @@ async function runSingleAgent(
 	};
 
 	try {
-		if (agent.systemPrompt.trim()) {
-			const tmp = await writePromptToTempFile(agent.name, agent.systemPrompt);
+		let systemPrompt = agent.systemPrompt;
+		if (agent.source === "package" && agent.name === "poteto-agent") {
+			const potetoModePath = path.resolve(path.dirname(agent.filePath), "../skills/poteto-mode/SKILL.md");
+			systemPrompt += `\n\nRead the full poteto-mode skill before working: ${potetoModePath}`;
+		}
+		if (systemPrompt.trim()) {
+			const tmp = await writePromptToTempFile(agent.name, systemPrompt);
 			tmpPromptDir = tmp.dir;
 			tmpPromptPath = tmp.filePath;
 			args.push("--append-system-prompt", tmpPromptPath);
@@ -406,6 +422,7 @@ async function runSingleAgent(
 						currentResult.usage.turns++;
 						const usage = msg.usage;
 						if (usage) {
+							currentResult.toolUsage = mergeUsage(currentResult.toolUsage, usage);
 							currentResult.usage.input += usage.input || 0;
 							currentResult.usage.output += usage.output || 0;
 							currentResult.usage.cacheRead += usage.cacheRead || 0;
@@ -485,6 +502,12 @@ const ModelOverride = Type.Optional(
 	}),
 );
 
+const ThinkingOverride = Type.Optional(
+	StringEnum(["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const, {
+		description: "Pi thinking level for this task. Overrides the configured role budget.",
+	}),
+);
+
 const ReadOnlyFlag = Type.Optional(
 	Type.Boolean({
 		description: "Restrict to read-only tools (read, grep, find, ls). Default: false.",
@@ -493,8 +516,7 @@ const ReadOnlyFlag = Type.Optional(
 
 const RoleField = Type.Optional(
 	Type.String({
-		description:
-			'Role name from ~/.pi/agent/pstack-models.json (e.g. "code", "execution", "judgment", "panel"). The extension resolves the role to a model; array values cycle across same-role tasks in one call. Ignored when an explicit model is set. Unknown roles and a missing config resolve to the parent chat model.',
+		description: `Exact pstack role from ${configPath()}. Valid roles: ${ROLE_SPECS.map((role) => role.id).join(", ")}. Panel roles cycle through their configured model list. Ignored when an explicit model is set.`,
 	}),
 );
 
@@ -503,6 +525,7 @@ const TaskItem = Type.Object({
 	task: Type.String({ description: "Task to delegate to the agent" }),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
 	model: ModelOverride,
+	thinking: ThinkingOverride,
 	role: RoleField,
 	readonly: ReadOnlyFlag,
 });
@@ -512,6 +535,7 @@ const ChainItem = Type.Object({
 	task: Type.String({ description: "Task with optional {previous} placeholder for prior output" }),
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })),
 	model: ModelOverride,
+	thinking: ThinkingOverride,
 	role: RoleField,
 	readonly: ReadOnlyFlag,
 });
@@ -528,6 +552,7 @@ const SubagentParams = Type.Object({
 	chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })),
 	agentScope: Type.Optional(AgentScopeSchema),
 	model: ModelOverride,
+	thinking: ThinkingOverride,
 	role: RoleField,
 	readonly: ReadOnlyFlag,
 	confirmProjectAgents: Type.Optional(
@@ -537,9 +562,14 @@ const SubagentParams = Type.Object({
 });
 
 export default function (pi: ExtensionAPI) {
+	pi.registerCommand("setup-pstack", {
+		description: "Configure pstack models and reasoning budget",
+		handler: setupPstack,
+	});
+
 	pi.registerTool({
-		name: "subagent",
-		label: "Subagent",
+		name: "pstack_task",
+		label: "Pstack task",
 		description: [
 			"Delegate tasks to specialized subagents with isolated context.",
 			"Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder).",
@@ -558,22 +588,85 @@ export default function (pi: ExtensionAPI) {
 			const agents = discovery.agents;
 			const confirmProjectAgents = params.confirmProjectAgents ?? true;
 
-			const roleConfig = loadRoleConfig();
-			const roleCursor = new Map<string, number>();
-			const resolveRoleModel = (role?: string): string | undefined => {
+			const configResult = readConfig();
+			if (configResult.error) {
+				return {
+					content: [{ type: "text", text: `${configResult.error}\nRun /setup-pstack to repair it.` }],
+					details: { mode: "single", agentScope, projectAgentsDir: discovery.projectAgentsDir, results: [] },
+					isError: true,
+				};
+			}
+			const availableCatalog = ctx.modelRegistry.getAvailable();
+			const availableModels = new Set(availableCatalog.map((model) => `${model.provider}/${model.id}`));
+			const defaultModel = (id: string): string => {
+				const matches = availableCatalog.filter((model) => model.id === id);
+				const selected = matches.find((model) => model.provider === ctx.model?.provider) ?? matches[0];
+				return selected ? `${selected.provider}/${selected.id}` : INHERIT_PARENT;
+			};
+			const roleConfig =
+				configResult.config ??
+				makeUpstreamPairConfig("large", defaultModel("grok-4.7"), defaultModel("claude-opus-5-5"));
+			if (roleConfig) {
+				const configuredModels = Object.values(roleConfig.roles)
+					.flatMap((assignment) => (Array.isArray(assignment) ? assignment : assignment ? [assignment] : []))
+					.map((assignment) => assignment.model)
+					.filter((model) => model !== INHERIT_PARENT && model !== "auto");
+				const unavailable = [...new Set(configuredModels.filter((model) => !availableModels.has(model)))];
+				if (unavailable.length > 0) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: `Unavailable pstack models: ${unavailable.join(", ")}. Run /setup-pstack to update ${configPath()}.`,
+							},
+						],
+						details: { mode: "single", agentScope, projectAgentsDir: discovery.projectAgentsDir, results: [] },
+						isError: true,
+					};
+				}
+			}
+
+			const modelFamily = (model: string | undefined): string | undefined => {
+				const id = model?.slice(model.indexOf("/") + 1);
+				return id?.match(/^(claude|grok|gpt|gemini|kimi|glm|deepseek|qwen)/)?.[1] ?? id?.split("-")[0];
+			};
+			const roleCursor = new Map<RoleId, number>();
+			const resolveRoleAssignment = (role?: string): ModelAssignment | undefined => {
 				if (!role) return undefined;
-				const entry = roleConfig[role];
-				if (typeof entry === "string") {
-					return entry === "inherit-parent" || entry === "auto" ? undefined : entry;
+				if (!ROLE_SPECS.some((candidate) => candidate.id === role)) {
+					throw new Error(`Unknown pstack role: ${role}. Run /setup-pstack or use one of: ${ROLE_SPECS.map((candidate) => candidate.id).join(", ")}`);
 				}
-				if (Array.isArray(entry) && entry.length > 0) {
-					// Panels: same-role tasks in one call consume the list in order, cycling.
-					const index = roleCursor.get(role) ?? 0;
-					roleCursor.set(role, index + 1);
-					const model = entry[index % entry.length];
-					return model === "inherit-parent" || model === "auto" ? undefined : model;
+				const roleId = role as RoleId;
+				const entry = roleConfig?.roles[roleId];
+				if (!entry) return undefined;
+				if (!Array.isArray(entry)) return entry;
+				const ordered =
+					roleId === "arena-cross-judge-pool"
+						? [...entry].sort((left, right) => {
+								const parentFamily = modelFamily(dispatchDefaults.model);
+								return Number(modelFamily(left.model) === parentFamily) - Number(modelFamily(right.model) === parentFamily);
+							})
+						: entry;
+				const index = roleCursor.get(roleId) ?? 0;
+				roleCursor.set(roleId, index + 1);
+				return ordered[index % ordered.length];
+			};
+
+			const taskOverrides = (params: {
+				model?: string;
+				thinking?: ThinkingLevel;
+				role?: string;
+				readonly?: boolean;
+			}): TaskOverrides => {
+				if (params.model) {
+					return { model: params.model, thinkingLevel: params.thinking, readonly: params.readonly };
 				}
-				return undefined;
+				const assignment = resolveRoleAssignment(params.role);
+				return {
+					model: assignment?.model,
+					thinkingLevel: params.thinking ?? assignment?.thinking,
+					readonly: params.readonly,
+				};
 			};
 
 			const hasChain = (params.chain?.length ?? 0) > 0;
@@ -665,10 +758,9 @@ export default function (pi: ExtensionAPI) {
 						step.cwd,
 						i + 1,
 						signal,
-						onUpdate,
 						chainUpdate,
 						makeDetails("chain"),
-						{ model: step.model ?? resolveRoleModel(step.role), readonly: step.readonly },
+						taskOverrides(step),
 					);
 					results.push(result);
 
@@ -678,6 +770,7 @@ export default function (pi: ExtensionAPI) {
 						return {
 							content: [{ type: "text", text: `Chain stopped at step ${i + 1} (${step.agent}): ${errorMsg}` }],
 							details: makeDetails("chain")(results),
+							usage: aggregateToolUsage(results),
 							isError: true,
 						};
 					}
@@ -686,6 +779,7 @@ export default function (pi: ExtensionAPI) {
 				return {
 					content: [{ type: "text", text: getFinalOutput(results[results.length - 1].messages) || "(no output)" }],
 					details: makeDetails("chain")(results),
+					usage: aggregateToolUsage(results),
 				};
 			}
 
@@ -748,7 +842,7 @@ export default function (pi: ExtensionAPI) {
 							}
 						},
 						makeDetails("parallel"),
-						{ model: t.model ?? resolveRoleModel(t.role), readonly: t.readonly },
+						taskOverrides(t),
 					);
 					allResults[index] = result;
 					emitParallelUpdate();
@@ -771,6 +865,7 @@ export default function (pi: ExtensionAPI) {
 						},
 					],
 					details: makeDetails("parallel")(results),
+					usage: aggregateToolUsage(results),
 				};
 			}
 
@@ -786,7 +881,7 @@ export default function (pi: ExtensionAPI) {
 					signal,
 					onUpdate,
 					makeDetails("single"),
-					{ model: params.model ?? resolveRoleModel(params.role), readonly: params.readonly },
+					taskOverrides(params),
 				);
 				const isError = isFailedResult(result);
 				if (isError) {
@@ -794,12 +889,14 @@ export default function (pi: ExtensionAPI) {
 					return {
 						content: [{ type: "text", text: `Agent ${result.stopReason || "failed"}: ${errorMsg}` }],
 						details: makeDetails("single")([result]),
+						usage: result.toolUsage,
 						isError: true,
 					};
 				}
 				return {
 					content: [{ type: "text", text: getFinalOutput(result.messages) || "(no output)" }],
 					details: makeDetails("single")([result]),
+					usage: result.toolUsage,
 				};
 			}
 
@@ -814,7 +911,7 @@ export default function (pi: ExtensionAPI) {
 			const scope: AgentScope = args.agentScope ?? "user";
 			if (args.chain && args.chain.length > 0) {
 				let text =
-					theme.fg("toolTitle", theme.bold("subagent ")) +
+					theme.fg("toolTitle", theme.bold("pstack task ")) +
 					theme.fg("accent", `chain (${args.chain.length} steps)`) +
 					theme.fg("muted", ` [${scope}]`);
 				for (let i = 0; i < Math.min(args.chain.length, 3); i++) {
@@ -834,7 +931,7 @@ export default function (pi: ExtensionAPI) {
 			}
 			if (args.tasks && args.tasks.length > 0) {
 				let text =
-					theme.fg("toolTitle", theme.bold("subagent ")) +
+					theme.fg("toolTitle", theme.bold("pstack task ")) +
 					theme.fg("accent", `parallel (${args.tasks.length} tasks)`) +
 					theme.fg("muted", ` [${scope}]`);
 				for (const t of args.tasks.slice(0, 3)) {
@@ -847,7 +944,7 @@ export default function (pi: ExtensionAPI) {
 			const agentName = args.agent || "...";
 			const preview = args.task ? (args.task.length > 60 ? `${args.task.slice(0, 60)}...` : args.task) : "...";
 			let text =
-				theme.fg("toolTitle", theme.bold("subagent ")) +
+				theme.fg("toolTitle", theme.bold("pstack task ")) +
 				theme.fg("accent", agentName) +
 				theme.fg("muted", ` [${scope}]`);
 			text += `\n  ${theme.fg("dim", preview)}`;

@@ -25,12 +25,12 @@ The N candidates will receive the same prompt, so the prompt is the contract. Ge
 
 1. State the artifact each candidate is producing.
 2. Derive the rubric. State what success looks like for *this* task, then turn it into 3-6 concrete gradeable criteria. Concrete: `Adds a --dry-run flag that skips writes`. Vague: `code is correct`. The rubric is the picker's tool in Phase D; candidates only see the task.
-3. Pick the runners. Spawn them with `role: "panel"`; the extension cycles the configured panel list, one model per runner (no config: all on the parent model). Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.
+3. Pick the runners. Read `~/.pi/agent/pstack-models.json` to determine the `arena-runners` list length. Spawn one `pstack_task` entry per seat with `role: "arena-runners"`; the extension cycles the list. Without a config, use two seats. `pstack_task` resolves the available upstream pair and falls back to the parent for an unavailable family. Spawn more when the arena covers multiple design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive.
 4. Assign output paths. Each candidate writes to its own location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`). N candidates writing to the same path is shared mutable state and fails the the **separate-before-serializing-shared-state** principle skill test.
 
 ## Phase B: Fan out
 
-Spawn all N candidates as one parallel subagent call (single `tasks[]` array), each entry with its task, the path to the shared grounding, its own output path, and instructions to produce both the artifact and a short rationale.
+Spawn all N candidates as one parallel `pstack_task` call with one `tasks[]` array. Give each entry the task, shared-grounding path, separate output path, and instructions to produce the artifact and a short rationale.
 
 The rationale is mandatory. Without it, the parent cannot tell whether a candidate's structure is principled or accidental, which makes Phase E grafting unreliable. Each rationale names the alternatives the candidate considered and what it rejected.
 
@@ -38,7 +38,7 @@ If a candidate fails to produce output, proceed with N-1 and note the dropout in
 
 ## Phase C: Cross-judge
 
-After all Phase B candidates complete, choose the judge model: prefer the first entry of the configured `panel` list whose model family differs from the parent's; with no config, use the parent model. Spawn one readonly judge subagent on that model. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Spawning while candidates are still writing means the judge sees partial or empty outputs and reports them as dropouts.
+After all Phase B candidates complete, spawn one readonly judge with `role: "arena-cross-judge-pool"`. The extension prefers a configured model family that differs from the parent. Without a config, it selects from the available upstream pair and falls back to the parent. The judge sees the rubric and candidates by path label, scores each criterion, and recommends a base with rationale. Run it in parallel with the parent's Phase D reading, not while candidates are still writing.
 
 ## Phase D: Pick a base
 

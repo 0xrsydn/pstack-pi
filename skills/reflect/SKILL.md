@@ -34,19 +34,19 @@ For each candidate, read the first JSONL line and check that `message.content[0]
 
 ### 2. Spawn three reviewers in parallel
 
-One message, three `subagent` calls, `agent: "general-purpose"`, explicit `model:` on each, agent mode (`readonly: false`). Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript); readonly strips MCPs. The prompt forbids file writes; the parent applies edits.
+Use one parallel `pstack_task` call with three tasks. Set `agent: "general-purpose"` and `readonly: false`. Reviewers need Model Context Protocol (MCP) access for context lookups. The prompt forbids file writes; the parent applies edits.
 
 | Lens | `model` | Prompt template |
 |---|---|---|
-| Judgment | `role: "judgment"` | `references/judgment-reviewer.md` |
-| Tooling | `role: "execution"` | `references/tooling-reviewer.md` |
-| Divergent | `role: "judgment"` | `references/divergent-reviewer.md` |
+| Judgment | `role: "reflect-judgment-divergent-synthesizer"` | `references/judgment-reviewer.md` |
+| Tooling | `role: "reflect-tooling"` | `references/tooling-reviewer.md` |
+| Divergent | `role: "reflect-judgment-divergent-synthesizer"` | `references/divergent-reviewer.md` |
 
 Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the subagent output.
 
 ### 3. Synthesize
 
-One `subagent` call, `agent: "general-purpose"`, with `role: "judgment"` and `readonly: false`. The synthesizer's quality check includes spot-verifying citations, which can require MCP access; readonly strips MCPs. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+Use one `pstack_task` call with `agent: "general-purpose"`, `role: "reflect-judgment-divergent-synthesizer"`, and `readonly: false`. The synthesizer can use MCP access to spot-check citations. Use `references/synthesizer.md` verbatim and insert each full review where marked.
 
 ### 4. Structural enforcement check
 

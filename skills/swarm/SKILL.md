@@ -22,12 +22,12 @@ Open a todolist with one entry per phase before launching anything.
 1. State the done predicate and the artifact or report the swarm must return.
 2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
 3. Set N from the user or derive it from the shape. N is total workers.
-4. Spawn workers with `role: "code"`; the extension resolves the configured code model (no config: the parent model). For a model race, set each arm's `model` field explicitly on its task entry.
+4. Spawn workers with `role: "swarm-workers"`; the extension resolves the configured model. Without a config, it uses the parent model. For a model race, set each arm's `model` field explicitly.
 5. Give each worker its own writable output when it writes. Use a worktree, branch, or `/tmp/swarm-<slug>/worker-<n>/`.
 
 ## Phase B: Fan out
 
-Spawn all N workers in one parallel subagent call (single `tasks[]` array) so they run concurrently with isolated contexts. Set each worker's `model` to the configured swarm-worker model. Workers run on this machine's repository checkout; scope tasks so writers do not collide.
+Spawn all N workers in one parallel `pstack_task` call with one `tasks[]` array. Set `role: "swarm-workers"` unless the race requires explicit models. Workers use this machine's repository checkout, so scope tasks to prevent writer collisions.
 
 When a worker must start from a non-default pushed branch, name that branch in its task brief.
 
