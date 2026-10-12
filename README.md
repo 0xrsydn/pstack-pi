@@ -9,7 +9,7 @@ The original skills, workflows, and prose are MIT-licensed work by Lauren Tan. T
 Use a pinned Git tag or commit for reproducible installs:
 
 ```bash
-pi install git:github.com/0xrsydn/pstack-pi@fe0fdf170fde0c1c1275eec02a912c9a6153b1ab
+pi install git:github.com/0xrsydn/pstack-pi@v0.16.0
 ```
 
 During development, load the local checkout:
@@ -18,9 +18,9 @@ During development, load the local checkout:
 pi -e /path/to/pstack-pi
 ```
 
-The pinned commit contains the Pi-native setup and routing implementation. Use a published tag when one is available.
+The tag pins the published release. Use a full commit ID when you need an exact development revision.
 
-Restart Pi after installation. Run `pi list` to confirm the package declaration.
+Restart Pi after installation, or run `/reload` in an existing session. Run `pi list` to confirm the package declaration.
 
 ## Set up models
 
@@ -192,6 +192,18 @@ Within each tool call, `pstack_task` cycles each panel in order. The arena cross
 
 ## Pi-native delegation
 
+### Extension loading versus skill invocation
+
+Pi loads this package's declared extension at session startup or reload. The `pi.extensions` entry in `package.json` points to `extensions/pstack/index.ts`. Its factory registers `/setup-pstack` and `pstack_task` immediately.
+
+Invoking a skill is not required to register or activate the tool. Disabling skills with `--no-skills` does not disable the extension. Package resource filters, `--no-extensions`, and tool-selection settings can disable extension loading or tool exposure independently.
+
+A loaded extension does not mean a running subagent. Child processes start only when `pstack_task` is called. Skills provide workflow instructions; they do not act as an activation gate.
+
+Do not copy the package entry point into `~/.pi/agent/extensions/` while also installing the package. Install it once to avoid duplicate tool and command registrations.
+
+### Delegation modes
+
 The package registers `pstack_task`, a focused tool based on Pi's official subagent example. It starts isolated Pi subprocesses and supports:
 
 - One task.
@@ -258,7 +270,7 @@ The child receives the task brief and agent instructions, not the parent convers
 - Calls wait for their children. They do not provide durable background jobs or Cursor-style resume handles.
 - Cancellation forwards the tool abort signal to the child process. It is not an operating-system process-tree sandbox.
 - Children share the working directory unless a task supplies `cwd`. The tool does not automatically create worktrees or prevent competing writes.
-- `readonly: true` restricts built-in tools to `read,grep,find,ls`. It is not a filesystem sandbox and does not disable extension tools.
+- `readonly: true` selects `read,grep,find,ls` as the child's declared tools. It is not a filesystem sandbox. It does not unload extensions or remove MCP integrations.
 - Children load their own Pi resources. Extensions loaded only through the parent's command line are not automatically forwarded.
 - Project agents are opt-in. Untrusted project agents require confirmation when a UI is available, unless confirmation is explicitly disabled.
 
@@ -316,3 +328,18 @@ npm run check
 ```
 
 The tests cover config validation, budget application, legacy migration, and atomic persistence. TypeScript checks the extension against Pi's public extension types.
+
+## Release workflow
+
+pstack-pi uses its own package version. It does not claim full parity with the same-numbered upstream Cursor release. The routing config's `version` is a separate schema version.
+
+1. Update `package.json`, both root version fields in `package-lock.json`, and [CHANGELOG.md](CHANGELOG.md) in a pull request.
+2. Keep versions aligned. Before 1.0, use a minor bump for breaking changes and a patch bump for compatible fixes.
+3. Run `npm ci --ignore-scripts`, `npm run check`, and `npm pack --dry-run`. Verify examples and release references.
+4. Merge the reviewed pull request. Fetch `main` with Jujutsu and re-run checks against the merged commit.
+5. Create an annotated `v<version>` tag on that exact commit. Never move or overwrite a published release tag.
+6. Push only that tag, then publish a GitHub release with changes, migration notes, known limits, and validation results.
+7. Attach the `npm pack` archive and a SHA-256 checksum file. The archive is a package artifact, not an npm registry publication.
+8. Update consumers to the published tag or its exact commit. Install the new source and verify startup with skills disabled.
+
+Jujutsu handles change management. Use Git only to create and push annotated tags, which this workflow cannot manage through Jujutsu. Publishing a GitHub release does not run `npm publish`; npm registry publication requires a separate decision and credentials.

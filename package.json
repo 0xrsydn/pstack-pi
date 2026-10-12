@@ -38,6 +38,7 @@
 		"agents",
 		"extensions",
 		"README.md",
+		"CHANGELOG.md",
 		"LICENSE",
 		"package.json"
 	],
