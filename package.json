@@ -14,7 +14,7 @@
 	},
 	"scripts": {
 		"check": "npm run typecheck && npm test",
-		"test": "node --experimental-strip-types --test extensions/pstack/*.test.ts",
+		"test": "node --experimental-strip-types --test extensions/pstack/*.test.ts skills/automate-me/scripts/*.test.mjs",
 		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [
