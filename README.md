@@ -307,6 +307,30 @@ The package retains Pi's progressive skill loading. Most pstack skills use `disa
 
 Cursor Cloud Automations are not included. Cursor-specific control plugins degrade to direct verification through the tools available in the Pi session.
 
+### Personal working preferences
+
+Run `/skill:automate-me` to create or update a personal `-mode` skill.
+The workflow retrieves user and assistant text from Pi sessions for the selected working directory.
+It reports coverage and requires user confirmation before recording preferences.
+It does not schedule jobs or infer preferences from assistant responses alone.
+
+The bundled Node.js helper reads the default workspace session directory and honors
+`PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`.
+For Pi's `--session-dir` or `sessionDir` setting, pass the resolved directory explicitly:
+
+```bash
+node skills/automate-me/scripts/read-history.mjs --cwd /path/to/project --session-dir /path/to/sessions --days 28
+```
+
+Each file's header must match the selected working directory before its messages are read.
+The helper retains stored branches, deduplicates fork copies, and strips expanded skill instructions from user evidence.
+It excludes tool output, generated summaries, context-edited messages, and sessions forked from outside the selected directory.
+These conservative exclusions can omit valid history. Prompt-template authorship still needs user confirmation.
+The CLI returns coverage only by default. Use `--offset 0 --limit 50` for bounded message pages.
+It reports missing, malformed, or skipped data. Legacy messages without IDs are skipped.
+When history is unavailable, the workflow asks whether to correct retrieval or draft from direct answers only.
+Private history and evidence paths do not belong in the published mode skill.
+
 ## Upstream scope
 
 This port includes the Pi-native setup, all 17 routing roles, isolated delegation, and adaptations of the existing bundled workflows. It is not a complete synchronization with the latest Cursor pstack release.
@@ -327,7 +351,9 @@ npm install --ignore-scripts
 npm run check
 ```
 
-The tests cover config validation, budget application, legacy migration, and atomic persistence. TypeScript checks the extension against Pi's public extension types.
+The tests cover config validation, budget application, legacy migration, atomic persistence, and workspace-scoped Pi history retrieval.
+History tests use temporary session files for branches, fork copies, date filtering, malformed data, and workspace isolation.
+TypeScript checks the extension against Pi's public extension types.
 
 ## Release workflow
 

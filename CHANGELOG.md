@@ -2,6 +2,15 @@
 
 Versions identify pstack-pi releases, not upstream Cursor pstack parity. Release tags are immutable.
 
+## Unreleased
+
+### Fixed
+
+- Replace automate-me's assumed transcript directory with tested, workspace-scoped Pi session retrieval.
+- Report history coverage and retrieval failures before proposing personal rules. Require user confirmation.
+- Remove the missing skill-authoring dependency and mandatory Git worktree, commit, and pull-request steps.
+- Match structured questions and skill invocation to Pi's interfaces.
+
 ## 0.16.0
 
 ### Added
