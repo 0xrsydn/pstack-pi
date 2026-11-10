@@ -2,7 +2,7 @@
 
 Versions identify pstack-pi releases, not upstream Cursor pstack parity. Release tags are immutable.
 
-## Unreleased
+## 0.17.0
 
 ### Added
 
@@ -24,6 +24,7 @@ Versions identify pstack-pi releases, not upstream Cursor pstack parity. Release
 
 ### Fixed
 
+- Exclude vendored `node_modules` from the published package. The `files` entry for `skills` packed about 1000 dependency files.
 - Replace automate-me's assumed transcript directory with tested, workspace-scoped Pi session retrieval.
 - Report history coverage and retrieval failures before proposing personal rules. Require user confirmation.
 - Remove the missing skill-authoring dependency and mandatory Git worktree, commit, and pull-request steps.

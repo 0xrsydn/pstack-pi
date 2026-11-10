@@ -9,7 +9,7 @@ The original skills, workflows, and prose are MIT-licensed work by Lauren Tan. T
 Use a pinned Git tag or commit for reproducible installs:
 
 ```bash
-pi install git:github.com/0xrsydn/pstack-pi@v0.16.0
+pi install git:github.com/0xrsydn/pstack-pi@v0.17.0
 ```
 
 During development, load the local checkout:
