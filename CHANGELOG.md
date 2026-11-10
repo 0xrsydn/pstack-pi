@@ -2,6 +2,14 @@
 
 Versions identify pstack-pi releases, not upstream Cursor pstack parity. Release tags are immutable.
 
+## 0.17.1
+
+Registry-only release with the same content as `0.17.0`. The npm registry refused version 0.17.0 as a previously published or staged version, so that number cannot be reused. The `v0.17.0` Git tag and its GitHub release stay as published.
+
+### Changed
+
+- Ignore `dist/`, which holds local `npm pack` archives and checksums.
+
 ## 0.17.0
 
 ### Added

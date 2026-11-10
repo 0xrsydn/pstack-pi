@@ -1,6 +1,6 @@
 {
 	"name": "@0xrsydn/pstack-pi",
-	"version": "0.17.0",
+	"version": "0.17.1",
 	"description": "Pi-native port of pstack with rigorous workflows, exact role routing, and isolated subagents.",
 	"type": "module",
 	"license": "MIT",
