@@ -303,6 +303,15 @@ Invoke the main mode explicitly:
 
 Other explicit skills use `/skill:<name>`, for example `/skill:arena`, `/skill:why`, or `/skill:interrogate`.
 
+Skills added in 0.17.0:
+
+- `/skill:correct` fixes a repeated mistake class in the repository itself.
+- `/skill:sharpen` makes a task deeper before rewriting the prompt.
+- `/skill:in-your-own-words` restates the goal and the problem before work starts.
+- `/skill:ketchup` reports what changed since your last message and what waits on you.
+- `/skill:benchmark-checklist` vets a performance number before you report it.
+- `/skill:create-formal-verification-skill` and `/skill:maintain-formal-verification-skill` generate and maintain a project-local formal check.
+
 The package retains Pi's progressive skill loading. Most pstack skills use `disable-model-invocation: true` and load only when explicitly invoked or referenced by another pstack workflow.
 
 Cursor Cloud Automations are not included. Cursor-specific control plugins degrade to direct verification through the tools available in the Pi session.
@@ -335,7 +344,16 @@ Private history and evidence paths do not belong in the published mode skill.
 
 This port includes the Pi-native setup, all 17 routing roles, isolated delegation, and adaptations of the existing bundled workflows. It is not a complete synchronization with the latest Cursor pstack release.
 
-Newer upstream skills, including `correct`, `ketchup`, and additional principle skills, remain follow-up work. Cursor-specific execution mechanics must be adapted to Pi before inclusion. Personal provider choices and the parent Pi default model are user configuration, not package defaults.
+The port now includes the portable upstream skills: `correct`, `sharpen`, `in-your-own-words`, `ketchup`, `benchmark-checklist`, `create-formal-verification-skill`, `maintain-formal-verification-skill`, and the principle leaves `principle-attack-the-premise`, `principle-explain-the-number`, and `principle-test-behavior-not-implementation`.
+
+These upstream items stay follow-up work:
+
+- `statechart` and `poteto-help`, which need a Pi adaptation of Cursor-specific mechanics.
+- `ketchup-video`, which renders a video that a terminal cannot show inline.
+- `make-bot-ui` and the `benny` automations, which target Cursor and Grok Bot services.
+- The newest upstream rewrites of `poteto-mode`, its playbooks, `why`, `how`, and `interrogate`. This port edits those files for Pi, so each needs a three-way merge instead of a copy.
+
+Cursor-specific execution mechanics must be adapted to Pi before inclusion. Personal provider choices and the parent Pi default model are user configuration, not package defaults.
 
 ## Development
 

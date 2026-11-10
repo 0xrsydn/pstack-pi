@@ -4,6 +4,24 @@ Versions identify pstack-pi releases, not upstream Cursor pstack parity. Release
 
 ## Unreleased
 
+### Added
+
+- Port ten portable upstream skills: `correct`, `sharpen`, `in-your-own-words`, `ketchup`, `benchmark-checklist`, `create-formal-verification-skill`, `maintain-formal-verification-skill`, and three principle leaves (`principle-attack-the-premise`, `principle-explain-the-number`, `principle-test-behavior-not-implementation`).
+- Route `benchmark-checklist` and user-requested `ketchup` from poteto-mode, restate the goal on a task's first message, and list the three new principles beside the existing leaves. `correct`, `sharpen`, and `in-your-own-words` stay explicit user commands.
+- Adapt `/ketchup` to Pi's terminal: link screenshots and videos instead of embedding them, and replace the `/visualize` reference with text and Mermaid diagrams.
+- Point generated formal verification at counterexample traces read in the code's terms, because the port does not include `/statechart`.
+
+### Changed
+
+- Port upstream's `check-plan.mjs` fence handling and its test file. Keep the orch tests in the script test command because this port still ships `scripts/orch/`.
+- Port the `watch-pr` pagination, fork-head, and deadline-cap fixes with their tests.
+- Port the `worktree-audit.sh` base-ref, stat, and date fixes. Keep the Pi session directory as the transcript source.
+- Drop "Must always apply." from the `unslop` description, which contradicted its `disable-model-invocation` setting.
+
+### Removed
+
+- Delete the unused `how` critic prompt and critique rubric references, which upstream removed.
+
 ### Fixed
 
 - Replace automate-me's assumed transcript directory with tested, workspace-scoped Pi session retrieval.
